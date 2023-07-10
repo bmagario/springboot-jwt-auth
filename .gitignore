@@ -1,0 +1,30 @@
+### IntelliJ ###
+*.iml
+*.ipr
+*.iws
+.idea/
+
+
+### Gradle ###
+# Exclude Folder List #
+.gradle/
+gradle/
+build/
+HELP.md
+gradlew
+gradlew.bat
+settings.gradle
+
+### Java ###
+*.class
+
+# Package Files #
+*.jar
+*.war
+*.ear
+
+### Linux ###
+.*
+!.gitignore
+!.git*
+*~
