@@ -1,17 +1,18 @@
-package com.example.challenge.services;
+package com.example.challenge.services
 
+import com.example.challenge.config.JwtUtil
+import com.example.challenge.dto.PhoneDTO
 import com.example.challenge.dto.UserMapper
 import com.example.challenge.dto.UserRegistrationRequestDTO
 import com.example.challenge.dto.UserRegistrationResponseDTOMapper
 import com.example.challenge.dto.UserRegistrationResponseDTO
-import com.example.challenge.models.Phone
 import com.example.challenge.models.User
 import com.example.challenge.repositories.UserRepository
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.security.core.userdetails.UsernameNotFoundException
 import org.springframework.security.crypto.password.PasswordEncoder
-import spock.lang.AutoCleanup
+import org.springframework.security.core.userdetails.UserDetails
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Unroll
@@ -28,24 +29,31 @@ class UserServiceSpec extends Specification {
     @MockBean
     PasswordEncoder passwordEncoder
 
-    @AutoCleanup
-    UserMapper userMapper = Mock((Map<String, Object>) null)
+    @MockBean
+    JwtUtil jwtUtil
 
-    private Map<String, Object> UserRegistrationResponseDTOMapper
-    @AutoCleanup
-    UserRegistrationResponseDTOMapper responseDTOMapper = Mock(UserRegistrationResponseDTOMapper)
+    UserMapper userMapper = new UserMapper()
+    UserRegistrationResponseDTOMapper responseDTOMapper = new UserRegistrationResponseDTOMapper()
 
     def setup() {
+        userRepository = Mock()
+        passwordEncoder = Mock()
+        jwtUtil = Mock()
         userService = new UserService(
-                userRepository, passwordEncoder, userMapper, responseDTOMapper, null)
+                userRepository, passwordEncoder, userMapper, responseDTOMapper, jwtUtil)
     }
 
     @Unroll
     def "loadUserByUsername should return UserDetails when user exists"() {
         given:
         String username = "test@example.com"
-        User user = new User(username, "password", "Test User", [new Phone("1234567890", "123")])
-        user.id = 1L
+        String password = "secret"
+        String name = "Test User"
+        User user = new User()
+        user.setId(1L)
+        user.setName(name)
+        user.setEmail(username)
+        user.setPassword(password)
 
         userRepository.findByEmail(username) >> Optional.of(user)
 
@@ -54,7 +62,7 @@ class UserServiceSpec extends Specification {
 
         then:
         userDetails.username == username
-        userDetails.password == "password"
+        userDetails.password == password
         userDetails.authorities.size() == 1
         userDetails.authorities[0].authority == "ROLE_USER"
     }
@@ -69,30 +77,37 @@ class UserServiceSpec extends Specification {
         userService.loadUserByUsername(username)
 
         then:
-        thrown(UsernameNotFoundException)
+            thrown(UsernameNotFoundException)
     }
 
     @Unroll
     def "registerUser should return UserRegistrationResponseDTO with token"() {
         given:
-        UserRegistrationRequestDTO request = new UserRegistrationRequestDTO(
-                "test@example.com", "password", "Test User", [new Phone("1234567890", "123")])
+        PhoneDTO phoneDto = new PhoneDTO()
+        phoneDto.setNumber(1234567890L)
+        phoneDto.setCountryCode("123")
+        String username = "test@example.com"
+        String password = "secret"
+        String name = "Test User"
+        UserRegistrationRequestDTO request = new UserRegistrationRequestDTO(name, username, password, [phoneDto])
 
-        User user = new User(request.email, request.password, request.name, request.phones)
-        user.id = 1L
+        User user = new User()
+        user.setId(1L)
+        user.setName(request.name)
+        user.setEmail(request.email)
+        user.setPassword(request.password)
 
         userRepository.save(_) >> user
+        jwtUtil.generateToken(user.getUsername()) >> "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJibWFnYXJpb0BnbWFpbC5jb20iLCJleHAiOjE2OTAyOTU5NTIsImlhdCI6MTY5MDIwOTU1Mn0.8SA24ZeQY50Wv3vEh5Bj5aga73EZ7PY5ZokTen3KKz8"
 
         when:
         UserRegistrationResponseDTO responseDTO = userService.registerUser(request)
 
         then:
-        responseDTO.email == request.email
-        responseDTO.name == request.name
-        responseDTO.phones == request.phones
-        responseDTO.token != null
-        responseDTO.token.length() > 0
-        responseDTO.authorities.size() == 1
-        responseDTO.authorities[0].authority == "ROLE_USER"
+        responseDTO.getCreated() != null
+        responseDTO.getLastLogin() == null
+        responseDTO.isActive()
+        responseDTO.getToken() != null
+        responseDTO.getToken().length() > 0
     }
 }
